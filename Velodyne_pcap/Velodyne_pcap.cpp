@@ -44,6 +44,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <string>
+#include <direct.h>
 
 #define	PCAP_MAGIC			0xa1b2c3d4
 
@@ -159,6 +160,29 @@ int netmask_str2len(char* mask){
 	return netmask;
 }
 
+int createDir(const char* DirName){
+	FILE* fp = NULL;
+	char TempDir[200];
+	memset(TempDir, '\0', sizeof(TempDir));
+	sprintf(TempDir, DirName);
+	strcat(TempDir, "\\");
+	strcat(TempDir, ".temp.fortest");
+	fp = fopen(TempDir, "w");
+	if (!fp){
+		if (_mkdir(DirName) == 0){
+			return 0;				// 文件夹创建成功  
+		}
+		else{
+			return -1;				// can not make a dir;  
+		}
+	}
+	else{
+		fclose(fp);
+		remove(TempDir);
+	}
+	return 0;
+}
+
 int main(int argc, char** argv){
 	char velodyne_device_type[16] = "Vel_32";
 	if (argc > 1){
@@ -255,10 +279,12 @@ int main(int argc, char** argv){
 	FILE* output;
 	char filename[64];
 	getFileName(filename, sizeof(filename), velodyne_device_type);
-	output = fopen(filename, "wb");
-	if (output == NULL){
-		printf("Fail to create pcap file......\n");
-		return 0;
+	if (!createDir("pcap")){
+		output = fopen(filename, "wb");
+		if (output == NULL){
+			printf("Fail to create pcap file......\n");
+			return 0;
+		}
 	}
 
 	write_file_header(output);
