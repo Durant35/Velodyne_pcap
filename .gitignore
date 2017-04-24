@@ -1,0 +1,9 @@
+# built execution
+Debug/Velodyne_pcap
+
+# pcap log files
+*.pcap
+
+# temporary object files
+obj/
+
