@@ -1,0 +1,8 @@
+# build folder
+build/
+
+# pcap files
+*.pcap
+
+# built execution file
+Velodyne_pcap
