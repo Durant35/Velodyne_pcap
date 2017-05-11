@@ -353,7 +353,7 @@ void packet_handler(u_char* param, const struct pcap_pkthdr* header, const u_cha
     // unused parameter
     FILE* output = reinterpret_cast<FILE*>(param);
     fwrite(header, sizeof(pcap_pkthdr), 1, output);
-    // printf("sizeof(local_header)=%d\n", sizeof(pcap_pkthdr));
+    printf("sizeof(local_header)=%d\n", sizeof(pcap_pkthdr));
     fwrite(pkt_data, header->caplen, 1, output);
 
     // flush the file buffer every FLUSH_PKT_NUM packets to avoid unexpected dump
