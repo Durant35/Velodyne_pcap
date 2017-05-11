@@ -63,6 +63,10 @@ if [ $1 == "setup" ] ; then
     cp Velodyne_pcap ..
 elif [ $1 == "capture" ]; then
     sudo ./Velodyne_pcap
+    if [ $? -gt 0 ]; then
+        echo "--[BASH INFO] run './run.sh setup' to build the project first"
+        exit -1
+    fi
 elif [ $1 == "clean" ] ; then
     rm -rf build Velodyne_pcap
 else
