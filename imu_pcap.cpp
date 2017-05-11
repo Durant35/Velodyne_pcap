@@ -69,11 +69,19 @@ int gettimeofday(struct timeval* tv)
     #define _snprintf snprintf
 #endif
 
+/* pcap file magic number */
 #define PCAP_MAGIC          0xa1b2c3d4
+/*
+ * the length of ethernet packet header
+ *  + destination address: 6 bytes
+ *  + source address: 6 bytes
+ *  + type: 2 bytes
+ */
+#define ETHPKT_HEADER_LEN 14
 
 using namespace std;
 
-/* 4 bytes IP address */
+/* 4-byte IP address */
 typedef struct {
     u_char byte1;
     u_char byte2;
@@ -81,7 +89,7 @@ typedef struct {
     u_char byte4;
 } ip_address_t;
 
-/* IPv4 header */
+/* 24-byte IPv4 header */
 typedef struct {
     u_char  ver_ihl;        // Version (4 bits) + Internet header length (4 bits)
     u_char  tos;            // Type of service
@@ -96,7 +104,7 @@ typedef struct {
     u_int   op_pad;         // Option + Padding
 } ip_header_t;
 
-/* UDP header */
+/* 8-byte UDP header */
 typedef struct {
     u_short sport;          // Source port
     u_short dport;          // Destination port
@@ -104,8 +112,17 @@ typedef struct {
     u_short crc;            // Checksum
 } udp_header_t;
 
-int write_file_header(FILE* output_file)
-{
+int write_file_header(FILE* output_file) {
+    /* 24(4+2+2+4+4+4+4)-byte pcap file header */
+    // struct pcap_file_header {
+    //     4   bpf_u_int32 magic; 
+    //     2   u_short version_major;
+    //     2   u_short version_minor;
+    //     4   bpf_int32 thiszone;     /* gmt to local correction */
+    //     4   bpf_u_int32 sigfigs;    /* accuracy of timestamps */
+    //     4   bpf_u_int32 snaplen;    /* max length saved portion of each pkt */
+    //     4   bpf_u_int32 linktype;   /* data link type (LINKTYPE_*) */
+    // };
     struct pcap_file_header fh;
 
     fh.magic = PCAP_MAGIC;
@@ -121,11 +138,11 @@ int write_file_header(FILE* output_file)
     fh.linktype = DLT_EN10MB;
 
     fwrite(&fh, sizeof(fh), 1, output_file);
+    // printf("sizeof(global_header)=%d\n", sizeof(fh));
     return 0;
 }
 
-int getFileName(char* filename, int len, const char* veledyne_device_type)
-{
+int getFileName(char* filename, int len, const char* veledyne_device_type) {
     struct timeval tp;
 #ifdef __WINDOWS_
     gettimeofday(&tp);
@@ -158,8 +175,7 @@ int getFileName(char* filename, int len, const char* veledyne_device_type)
 /* prototype of the packet handler */
 void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data);
 
-int createDir(const char* DirName)
-{
+int createDir(const char* DirName) {
 #ifdef WIN32
     FILE* fp = NULL;
     char TempDir[200];
@@ -188,8 +204,11 @@ int createDir(const char* DirName)
 #endif
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
+    // printf("sizeof(ip_address_t)=%d\n", sizeof(ip_address_t));
+    // printf("sizeof(ip_header_t)=%d\n", sizeof(ip_header_t));
+    // printf("sizeof(udp_header_t)=%d\n", sizeof(udp_header_t));
+
     char velodyne_device_type[16] = "Vel_32";
     if (argc > 1) {
         strcpy(velodyne_device_type, argv[1]);
@@ -202,8 +221,8 @@ int main(int argc, char** argv)
     pcap_t *adhandle;
     char errbuf[PCAP_ERRBUF_SIZE];
     //char packet_filter[] = "src 195.0.0.29 and port 5001";
-    char packet_filter[] = "src 192.168.1.201 and port 2368";
-    //char packet_filter[] = "";
+    //char packet_filter[] = "src 192.168.1.201 and port 2368";
+    char packet_filter[] = "";
 
     /* Retrieve the device list */
     if (pcap_findalldevs(&alldevs, errbuf) == -1) {
@@ -320,8 +339,7 @@ int main(int argc, char** argv)
 /* Callback function invoked by libpcap for every incoming packet */
 static unsigned int flush_counter = 0;
 #define FLUSH_PKT_NUM 1600
-void packet_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data)
-{
+void packet_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data) {
     flush_counter++;
 
     struct tm* ltime;
@@ -335,6 +353,7 @@ void packet_handler(u_char* param, const struct pcap_pkthdr* header, const u_cha
     // unused parameter
     FILE* output = reinterpret_cast<FILE*>(param);
     fwrite(header, sizeof(pcap_pkthdr), 1, output);
+    // printf("sizeof(local_header)=%d\n", sizeof(pcap_pkthdr));
     fwrite(pkt_data, header->caplen, 1, output);
 
     // flush the file buffer every FLUSH_PKT_NUM packets to avoid unexpected dump
@@ -344,7 +363,7 @@ void packet_handler(u_char* param, const struct pcap_pkthdr* header, const u_cha
     }
 
     /* retireve the position of the ip header */
-    ih = (ip_header_t *)(pkt_data + 14);                                    //length of ethernet header
+    ih = (ip_header_t *)(pkt_data + ETHPKT_HEADER_LEN);
 
     /* retireve the position of the udp header */
     ip_len = (ih->ver_ihl & 0xf) * 4;
