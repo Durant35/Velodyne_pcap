@@ -142,32 +142,43 @@ int write_file_header(FILE* output_file) {
     return 0;
 }
 
-int getFileName(char* filename, int len, const char* veledyne_device_type) {
-    struct timeval tp;
-#ifdef __WINDOWS_
-    gettimeofday(&tp);
-#else
-    struct timezone tz;
-    gettimeofday(&tp, &tz);
-#endif
-    struct tm *ltime;
-    char timestr[32];
+int getFileName(char* filename, int len, const char* veledyne_device_type, const char* name) {
+    // find LiDAR's ip
+    if(!strcmp(veledyne_device_type, "find_ip")) {
+        #ifdef __WINDOWS_
+            _snprintf(filename, len, ".\\pcap\\find_ip.pcap");
+        #else
+            _snprintf(filename, len, "./pcap/find_ip.pcap");
+        #endif
+    }
+    else {
+        struct timeval tp;
+    #ifdef __WINDOWS_
+        gettimeofday(&tp);
+    #else
+        struct timezone tz;
+        gettimeofday(&tp, &tz);
+    #endif
+        struct tm *ltime;
+        char timestr[32];
 
-    time_t local_tv_sec;
+        time_t local_tv_sec;
 
-    // convert the timestamp to readable format
-    local_tv_sec = tp.tv_sec;
-    ltime = localtime(&local_tv_sec);
+        // convert the timestamp to readable format
+        local_tv_sec = tp.tv_sec;
+        ltime = localtime(&local_tv_sec);
 
-    strftime(timestr, sizeof(timestr), "%x %X", ltime);
-    printf("--------- Time: %s [usec]%ld ---------\n", timestr, tp.tv_usec);
-    strftime(timestr, sizeof(timestr), "%Y%m%d%H%M%S", ltime);
+        strftime(timestr, sizeof(timestr), "%x %X", ltime);
+        printf("--------- Time: %s [usec]%ld ---------\n", timestr, tp.tv_usec);
+        strftime(timestr, sizeof(timestr), "%Y%m%d%H%M%S", ltime);
 
-#ifdef __WINDOWS_
-    _snprintf(filename, len, ".\\pcap\\%s_%s.pcap", veledyne_device_type, timestr);
-#else
-    _snprintf(filename, len, "./pcap/%s_%s.pcap", veledyne_device_type, timestr);
-#endif
+    #ifdef __WINDOWS_
+        _snprintf(filename, len, ".\\pcap\\%s_%s[%s].pcap", name, timestr, veledyne_device_type);
+    #else
+        _snprintf(filename, len, "./pcap/%s_%s[%s].pcap", name, timestr, veledyne_device_type);
+    #endif
+    }
+
 
     return 0;
 }
@@ -209,10 +220,15 @@ int main(int argc, char** argv) {
     // printf("sizeof(ip_header_t)=%d\n", sizeof(ip_header_t));
     // printf("sizeof(udp_header_t)=%d\n", sizeof(udp_header_t));
 
-    char velodyne_device_type[16] = "Vel_32";
+    char velodyne_device_type[16] = "HDL32";
+    char name[64] = "usi";
     if (argc > 1) {
         strcpy(velodyne_device_type, argv[1]);
+        if(argc == 3) {
+            strcpy(name, argv[2]);
+        }
     }
+    // printf("velodyne_device_type=%s, name=%s\n", velodyne_device_type, name);
 
     pcap_if_t *alldevs;
     pcap_if_t *d;
@@ -220,9 +236,16 @@ int main(int argc, char** argv) {
     int i = 0;
     pcap_t *adhandle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    //char packet_filter[] = "src 195.0.0.29 and port 5001";
-    //char packet_filter[] = "src 192.168.1.201 and port 2368";
-    char packet_filter[] = "";
+    char packet_filter[128];
+    if(!strcmp(velodyne_device_type, "find_ip")) {
+        strcpy(packet_filter, "");
+    }
+    else {
+        // LiDAR's filter
+        strcpy(packet_filter, "src 192.168.1.201 and port 2368");
+        // imu's filter
+        // char packet_filter[] = "src 195.0.0.29 and port 5001";
+    }
 
     /* Retrieve the device list */
     if (pcap_findalldevs(&alldevs, errbuf) == -1) {
@@ -305,8 +328,9 @@ int main(int argc, char** argv) {
     }
 
     FILE* output;
-    char filename[64];
-    getFileName(filename, sizeof(filename), velodyne_device_type);
+    // 16 + 64 + 32
+    char filename[112];
+    getFileName(filename, sizeof(filename), velodyne_device_type, name);
 
     createDir("pcap");
     output = fopen(filename, "wb");
